@@ -1,0 +1,174 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Event Hall 3D Layout</title>
+<style>
+:root{--bg:#f4f5f7;--pn:#fff;--tx:#14181f;--mu:#667085;--ac:#d98a00;--bd:#dde1e7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1117;--pn:#151b24;--tx:#e6e9ef;--mu:#8a94a6;--ac:#ffc233;--bd:#262e3a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d1117;--pn:#151b24;--tx:#e6e9ef;--mu:#8a94a6;--ac:#ffc233;--bd:#262e3a;color-scheme:dark}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:13px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif}
+#app{display:grid;grid-template-columns:330px 1fr;height:100%}
+#side{background:var(--pn);border-right:1px solid var(--bd);overflow:auto;padding:12px}
+#vp{position:relative;min-width:0;min-height:0}canvas{width:100%;height:100%;display:block;touch-action:none}
+h1{font-size:16px;margin:0 0 2px}.mu{color:var(--mu);font-size:12px}
+h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ac);margin:14px 0 4px}
+.row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--bd)}
+.row.sel{background:rgba(255,194,51,.15)}.row label{flex:1;cursor:pointer;display:flex;gap:6px;align-items:center}
+.row b{font-weight:500}button{font:inherit;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:3px 8px;cursor:pointer}
+.row button{padding:1px 7px;min-width:26px}button:hover,button.on{border-color:var(--ac)}
+.g{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+#views,#zm{position:absolute;display:flex;gap:5px;flex-wrap:wrap}#views{top:8px;left:8px;right:70px}#zm{top:8px;right:8px;flex-direction:column}
+#views button,#zm button,#info{background:rgba(13,17,23,.78);color:#fff;border-color:#3a4456}
+#views button.on{background:#d98a00;border-color:#d98a00}
+#info{position:absolute;left:8px;bottom:8px;padding:6px 10px;border:1px solid #3a4456;border-radius:8px;max-width:70%}
+@media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:58% 42%}#side{order:2;border-right:0;border-top:1px solid var(--bd)}}
+</style></head><body>
+<div id="app"><aside id="side"></aside><main id="vp"><canvas id="c"></canvas><div id="views"></div><div id="zm"><button onclick="dz(.7)">＋</button><button onclick="dz(1.4)">－</button></div><div id="info">Click any item in the scene or list to focus it.</div></main></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const V=THREE.Vector3,$=s=>document.querySelector(s),R=$('#vp');
+const ren=new THREE.WebGLRenderer({canvas:$('#c'),antialias:true});ren.setPixelRatio(Math.min(devicePixelRatio,2));
+const sc=new THREE.Scene();sc.background=new THREE.Color(0x0d1117);
+const cam=new THREE.PerspectiveCamera(45,1,.3,900),oc=new THREE.OrbitControls(cam,$('#c'));
+oc.enableDamping=true;oc.maxPolarAngle=1.55;oc.minDistance=.5;oc.maxDistance=400;
+sc.add(new THREE.HemisphereLight(0xffffff,0x445066,.9));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(60,100,-40);sc.add(dl);
+const M=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.65,metalness:.15,transparent:!!o.t,opacity:o.t||1,emissive:o.e||0,depthWrite:!o.t});
+const G={},cats=[];let labelsOn=true,selId=null;
+function grp(id,cat,name,n){const g=new THREE.Group();g.userData={id,cat,name,n};G[id]=g;sc.add(g);return g}
+function reg(g,m){m.userData.g=g.userData.id;g.add(m);return m}
+function b(g,w,h,d,x,y,z,c,o){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c,o));m.position.set(x,y+h/2,z);return reg(g,m)}
+function cy(g,r,h,x,y,z,c,o){const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,14),M(c,o));m.position.set(x,y+h/2,z);return reg(g,m)}
+function sp(g,r,x,y,z,c,o){const m=new THREE.Mesh(new THREE.SphereGeometry(r,12,10),M(c,o));m.position.set(x,y,z);return reg(g,m)}
+function seg(g,a,e,r,c){const A=new V(...a),d=new V(...e).sub(A),L=d.length(),m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,L,6),M(c));m.position.copy(A).addScaledVector(d,.5);m.quaternion.setFromUnitVectors(new V(0,1,0),d.normalize());return reg(g,m)}
+function cone(g,A,B,r,c,op){A=new V(...A);B=new V(...B);const d=A.clone().sub(B),L=d.length(),m=new THREE.Mesh(new THREE.ConeGeometry(r,L,16,1,true),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:op,depthWrite:false,side:2}));m.position.copy(A).add(B).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new V(0,1,0),d.normalize());m.raycast=()=>{};g.add(m)}
+function inst(g,w,h,d,c,l){const im=new THREE.InstancedMesh(new THREE.BoxGeometry(w,h,d),M(c),l.length),t=new THREE.Matrix4();l.forEach((p,i)=>{t.makeTranslation(...p);im.setMatrixAt(i,t)});reg(g,im)}
+function lab(g,t,x,y,z,y0){const k=document.createElement('canvas'),X=k.getContext('2d'),f='600 30px system-ui,sans-serif';X.font=f;const w=Math.ceil(X.measureText(t).width)+26;k.width=w;k.height=50;X.font=f;X.fillStyle='rgba(13,17,23,.88)';X.fillRect(0,0,w,50);X.strokeStyle='#ffc233';X.lineWidth=3;X.strokeRect(1.5,1.5,w-3,47);X.fillStyle='#fff';X.textBaseline='middle';X.fillText(t,13,26);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(k),depthTest:false,transparent:true,sizeAttenuation:false}));s.scale.set(.036*w/50,.036,1);s.position.set(x,y,z);s.renderOrder=9;s.userData.lab=1;g.add(s);
+ if(y0!==undefined){const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V(x,y0,z),new V(x,y,z)]),new THREE.LineBasicMaterial({color:0xffc233}));l.userData.lab=1;g.add(l)}}
+function person(g,x,z,c){cy(g,.7,3,x,0,z,c);sp(g,.5,x,3.6,z,c)}
+const BK=0x15171c;
+
+/* ---------- Hall shell & CAD aids ---------- */
+let g=grp('shell','Layout aids','Hall shell (144 × 34 ft)',1);
+reg(g,Object.assign(new THREE.Mesh(new THREE.PlaneGeometry(144,34),M(0x9aa1ac)),{}));g.children[0].rotation.x=-Math.PI/2;g.children[0].position.set(72,0,17);
+b(g,.3,22,34,-.15,0,17,0x3a4458,{t:.3});b(g,144,22,.3,72,0,-.15,0x3a4458,{t:.1});b(g,144,22,.3,72,0,34.15,0x3a4458,{t:.1});
+g=grp('outside','Layout aids','Outside zones (35.4 / 18.37)',2);
+[[-17.7,35.4],[153.2,18.37]].forEach(([x,w])=>{b(g,w,.1,34,x,0,17,0x2a3550,{t:.6});seg(g,[x-w/2,.2,0],[x+w/2,.2,34],.12,0x6b7a99);seg(g,[x-w/2,.2,34],[x+w/2,.2,0],.12,0x6b7a99)});
+lab(g,'Outside zone 35.40',-17.7,6,17);lab(g,'Outside zone 18.37',153.2,6,17);
+g=grp('dims','Layout aids','Dimensions',1);
+seg(g,[0,.2,-3],[144,.2,-3],.12,0xffffff);seg(g,[-2,.2,0],[-2,.2,34],.12,0xffffff);
+lab(g,'144.00 ft',72,.5,-3);lab(g,'34.00 ft',-2,.5,17);lab(g,'Stage 20 × 12 ft',6,.5,-3.0+0.0,undefined);
+g=grp('pw','Layout aids','Power points from CAD',3);
+b(g,1.2,1.2,.4,128,1.2,.3,0xffd400,{e:0xaa8800});b(g,144,.5,.2,72,1,33.9,0xffd400,{e:0x886600});b(g,.2,.5,4,.2,1,14,0xffd400,{e:0xaa8800});
+lab(g,'(1) Power outlet',128,6,.3,2);lab(g,'(2) Power sockets (full wall)',72,5,33.9,1.5);lab(g,'(3) Power socket',.4,6,14,1.5);
+
+/* ---------- Stage ---------- */
+g=grp('stage','Stage','20×12 Premium Black Carpeted Main Stage',1);
+b(g,12,2,20,6,0,17,0x23232b);b(g,12,.06,20,6,2,17,0x050507);lab(g,'Main Stage 20×12 (black carpet)',8,9.5,17,2.1);
+g=grp('stairs','Stage','4-ft Front Staircases',2);
+[[7,-1],[27,1]].forEach(([z,s])=>{for(let i=0;i<4;i++)b(g,4,2-.5*i,.75,9,0,z+s*(.375+.75*i),0x2d2d36)});lab(g,'Stairs 4 ft (side, ×2)',9,5.5,4,2.4);lab(g,'Stairs 4 ft (side)',9,5.5,30,2.4);
+g=grp('podium','Stage','TV Podium',1);
+b(g,2,4,1.6,8,2.06,24,0x1a1a20);b(g,.12,2,2.4*.6,9.06,3.2,24,0x0b1020,{e:0x1e40af});lab(g,'TV Podium',8,10,24,6.2);
+g=grp('ctable','Panel Discussion','Coffee Table',1);b(g,1.8,1.4,10,8,2.06,15,0x6b4423);lab(g,'Coffee Table',8.5,7.5,15,3.5);
+g=grp('cchair','Panel Discussion','Cushion Chairs',6);
+for(let i=0;i<6;i++){const z=10.5+1.9*i;b(g,1.5,1.5,1.5,4.8,2.06,z,0xe0cfb0);b(g,.25,1.5,1.5,4.0,3.56,z,0xe0cfb0)}lab(g,'Cushion Chairs ×6',4,8,15.5,5);
+
+/* ---------- LED ---------- */
+g=grp('ledm','LED wall','MR P3 20×8 HD Main Indoor Screen',1);b(g,.4,8,20,.5,3.05,17,0x1d3a8a,{e:0x1b3a9a});lab(g,'LED Main 20×8 (P3 HD)',1.2,7,17);
+g=grp('ledv','LED wall','MR P3 12×3 Vertical Stage Runner',2);b(g,.4,12,3,.5,0,5.5,0x0e5a74,{e:0x0a6a8a});b(g,.4,12,3,.5,0,28.5,0x0e5a74,{e:0x0a6a8a});lab(g,'Runner 12×3 (V)',1,13.5,5.5,12);lab(g,'Runner 12×3 (V)',1,13.5,28.5,12);
+g=grp('ledh','LED wall','MR P3 20×3 Horizontal Stage Runner',1);b(g,.4,3,20,12.25,0,17,0x0e5a74,{e:0x0a6a8a});lab(g,'Runner 20×3 (H) — along stage front',12.25,7,17,3.1);
+g=grp('plat','LED wall','Platform with Frill',1);b(g,2,1,20,1.2,2.06,17,0xe8e4dc);b(g,.1,.9,20,2.25,2.1,17,0xb7313a);lab(g,'Platform w/ frill',3,5,11,3.1);
+g=grp('vproc','LED wall','Video Processor',1);g=grp('arena','LED wall','Arena Playback System',1);g=grp('backup','LED wall','Backup PC',1);
+g=grp('ledop','LED wall','Professional Wall Operator',1);
+
+/* ---------- Sound ---------- */
+g=grp('la','Sound','RCF Line Array Top Speakers',2);[1.8,32.2].forEach(z=>{b(g,1.4,5,1.4,2.5,8,z,0x2a2a30);seg(g,[2.5,13,z],[2.5,22,z],.08,0x888888)});lab(g,'Line Array ×2',2.5,17,1.8,13.1);
+g=grp('bin','Sound','Bin Speakers',2);[3.2,30.8].forEach(z=>b(g,2.6,3,2.8,5,0,z,0x2a2a30));lab(g,'Bin Speakers ×2',5,6,3.2,3.1);
+g=grp('delay','Sound','Delay Speakers',2);[.8,33.2].forEach(z=>{cy(g,.1,5,52,0,z,0x888888);b(g,1.2,2.4,1.2,52,5,z,0x2a2a30)});lab(g,'Delay Speakers ×2',52,10.5,.8,7.4);lab(g,'Delay Speaker',52,10.5,33.2,7.4);
+g=grp('mon','Sound','Stage Monitors',2);[11,20].forEach(z=>{const m=b(g,1.6,1,2,11,2.1,z,0x2a2a30);m.rotation.z=-.35});lab(g,'Stage Monitors ×2',11,7,15.5,3.2);
+g=grp('lapel','Sound','Wireless Lapel Microphones',2);[12.4,14.3].forEach(z=>sp(g,.2,4.1,4.3,z,0xff5577,{e:0x881122}));lab(g,'Lapel Mics ×2',3,9.5,13,4.4);
+g=grp('pmic','Sound','Podium Mics',2);[23.5,24.5].forEach(z=>{cy(g,.05,1.4,8.7,6.06,z,0x111111);sp(g,.12,8.7,7.55,z,0x111111)});lab(g,'Podium Mics ×2',8,11.5,24,7.6);
+g=grp('wmic','Sound','Wireless Mics',6);for(let i=0;i<6;i++)cy(g,.09,.9,8,3.5,11.6+1.6*i,0x111111);lab(g,'Wireless Mics ×6',8,9,15.5,4.4);
+g=grp('mixer','Sound','Audio Mixer',1);g=grp('aeng','Sound','Professional Audio Engineer',1);
+
+/* ---------- Lighting ---------- */
+g=grp('truss','Lighting','Truss Bar',1);b(g,.6,.6,30,8,15.7,17,0x9aa0aa);[2,32].forEach(z=>seg(g,[8,15.7,z],[8,28,z],.12,0x9aa0aa));lab(g,'Truss Bar',8,22,17,16.3);
+g=grp('beam','Lighting','Beam Lights',6);[5,9,13,21,25,29].forEach(z=>{cy(g,.45,1.4,8,14.2,z,0x1a1a1f,{e:0x223344});cone(g,[8,14.2,z],[7,2.1,17+(z-17)*.4],.9,0x9ad1ff,.1)});lab(g,'Beam Lights ×6',8,20,5,15.6);
+g=grp('wash','Lighting','Zoom Wash Lights',5);[7,12,17,22,27].forEach(z=>{b(g,1,1,1,9.6,14.5,z,0x333338);b(g,.9,.1,.9,9.6,14.4,z,0xffb347,{e:0xaa6a10})});lab(g,'Zoom Wash ×5',9.6,19,12,15.6);
+g=grp('face','Lighting','Face Lights with Stands',4);[6,13,21,28].forEach(z=>{cy(g,.1,8,22,0,z,0x333333);const m=b(g,.9,.9,1.2,22,8,z,0x222222,{e:0x554a2a});m.rotation.z=.35});lab(g,'Face Lights ×4',22,12.5,6,9);
+g=grp('follow','Lighting','Follow Light',1);b(g,3,2,3,104,0,22,0x23232b);cy(g,.1,6,104,2,22,0x333333);const fm=b(g,1,1,2,104,8,22,0x222222,{e:0x666666});cone(g,[104,9,22],[8,4,20],2.5,0xffffff,.05);lab(g,'Follow Light',104,13,22,9.5);
+g=grp('lcon','Lighting','Lighting Console',1);g=grp('lop','Lighting','Lighting Operator',1);
+
+/* ---------- Furniture ---------- */
+g=grp('pch','Main Furniture','Plastic Chairs with Black Covers',400);
+{const s=[],k=[];for(let r=0;r<20;r++)for(const z0 of[1.5,18.5])for(let i=0;i<10;i++){const x=27+r*2.6,z=z0+.7+i*1.4;s.push([x,.75,z]);k.push([x+.6,2.15,z])}
+inst(g,1.3,1.5,1.25,BK,s);inst(g,.2,1.3,1.25,BK,k);g.userData.bb=new THREE.Box3(new V(26,0,1.5),new V(78,3,32.5));lab(g,'Plastic Chairs ×400 (2 blocks × 10 × 20 rows)',52,7,17)}
+g=grp('bch','Main Furniture','Banquet Chairs with Black Covers',15);
+{const s=[],k=[];for(let i=0;i<15;i++){const z=i<8?14.2-i*1.9:19.8+(i-8)*1.9;s.push([17,.8,z]);k.push([17.7,2.4,z])}inst(g,1.6,1.6,1.6,0x1b1b1b,s);inst(g,.25,1.6,1.6,0xb8923a,k);g.userData.bb=new THREE.Box3(new V(16,0,0),new V(18.5,3.2,32));lab(g,'Banquet Chairs ×15 (guests, 4 ft walkway in centre)',17,6,23.6,3.3)}
+g=grp('tbl','Main Furniture','6×3 Tables with Black Cloth',3);[121,127,133].forEach(x=>{b(g,6,2.5,3,x,0,32.3,0x0f0f12);b(g,5.95,.08,3.1,x,2.5,32.3,0x25252b)});lab(g,'Registration tables 6×3 ×3 (along wall)',127,6.5,32.3,2.6);
+
+/* ---------- Power ---------- */
+g=grp('spd','Power & Electrical','Stage Power Distribution Box',1);b(g,1.4,2,1.8,1.8,0,31.6,0xe05a00);lab(g,'Stage PD Box',1.8,5,31.6,2);
+g=grp('fpd','Power & Electrical','FOH Power Distribution Box',1);b(g,1.6,2,1.4,27.5,0,33.1,0xe05a00);lab(g,'FOH PD Box',27.5,6,33.1,2);
+g=grp('cord','Power & Electrical','10M Power Extension Cords',25);
+seg(g,[27.5,.15,32.1],[3,.15,32.1],.14,0xff8a00);seg(g,[3,.15,32.1],[1.8,.15,31.6],.14,0xff8a00);seg(g,[27.5,.15,33.2],[52,.15,33.2],.14,0xff8a00);lab(g,'Power cords ×25 (10 m each)',40,3.5,33.2,.3);
+
+/* ---------- Other ---------- */
+g=grp('hdmi','Other Items','10M HDMI Cables',8);seg(g,[19,.15,32.6],[1,.15,32.6],.1,0x3aa0ff);seg(g,[1,.15,32.6],[1,.15,29],.1,0x3aa0ff);lab(g,'HDMI ×8 (10 m each)',9,3.5,32.6,.3);
+g=grp('lap','Other Items','Presentation Laptops',2);b(g,1,.08,.8,7.6,6.06,24,0x888c94);b(g,1,.08,.8,25,2.5,33.1,0x888c94);lab(g,'Laptop (podium)',6,9,25.5,6.2);lab(g,'Laptop (AV desk)',25,8,33.1,2.7);
+g=grp('clk','Other Items','Presentation Clickers',2);b(g,.3,.05,.15,8.4,6.06,23.2,0x222222);b(g,.3,.05,.15,8.4,6.06,24.8,0x222222);lab(g,'Clickers ×2',7,12.5,26,6.2);
+g=grp('vsw','Other Items','Video Switcher',1);
+g=grp('foh','Other Items','FOH Tech Desk & Chair',1);b(g,14,2.5,1.7,19,0,33.1,0x2b2b33);b(g,14.1,.08,1.8,19,2.5,33.1,0x3d3d4a);b(g,1.5,1.5,1.5,21.5,0,31.3,0x111111);b(g,1.5,1.5,.2,21.5,1.5,30.6,0x111111);lab(g,'AV Controls — FOH Tech Desk & Chair',19,12,33.1,2.6);
+/* FOH gear on desk */
+const on=(id,w,d,x,c,t,ly)=>{const q=G[id];b(q,w,.5,d,x,2.58,33.1,c);lab(q,t,x,ly,33.1,3.1)};
+on('mixer',2.2,1.4,13.4,0x4b5563,'Audio Mixer',6.5);on('lcon',2.4,1.4,16.2,0x6d28d9,'Lighting Console',9);on('vsw',1.6,1.2,18.6,0xd97706,'Video Switcher',6.5);
+on('vproc',1.6,1.2,20.4,0x0e7490,'Video Processor',9);on('arena',1.4,1.2,22,0x15803d,'Arena Playback',6.5);on('backup',1.2,1.2,23.5,0x475569,'Backup PC',9);
+person(G.aeng,13.4,31.3,0x4ade80);lab(G.aeng,'Audio Engineer',13.4,7.5,31.3,4.2);person(G.lop,15,31.3,0xc084fc);lab(G.lop,'Lighting Operator',15,10,31.3,4.2);person(G.ledop,19.8,31.3,0x22d3ee);lab(G.ledop,'LED Wall Operator',19.8,7.5,31.3,4.2);
+
+/* ---------- Suggested additions ---------- */
+g=grp('qa','Suggested additions','Q&A Mic Stands (audience aisle)',2);[[40,15.7],[62,18.3]].forEach(([x,z])=>{cy(g,.1,4,x,0,z,0x333333);sp(g,.15,x,4.2,z,0x111111)});lab(g,'Q&A Mic Stand ×2',40,8,15.7,4.4);
+g=grp('conf','Suggested additions','Confidence Monitor',1);cy(g,.1,1.5,14.5,0,20.5,0x333333);const cm=b(g,.2,2,3.2,14.5,1.5,20.5,0x0b1020,{e:0x1e40af});cm.rotation.z=.3;lab(g,'Confidence Monitor',14.5,7,20.5,3.5);
+g=grp('cam','Suggested additions','Camera & Tripod (recording)',1);[[-.6,0],[.4,.5],[.4,-.5]].forEach(([a,c])=>seg(g,[84,4,22],[84+a*2,0,22+c*2],.06,0x333333));b(g,1.2,1,.8,84,4,22,0x222222);lab(g,'Camera & Tripod',84,9,22,5);
+g=grp('fire','Suggested additions','Fire Extinguishers',4);[[1,1],[1,33],[143,1],[143,33]].forEach(([x,z])=>cy(g,.4,2,x,0,z,0xd01818));lab(g,'Extinguisher',143,5,1,2);lab(g,'Extinguisher',1,5,1,2);
+
+/* ---------- Items from the 2nd sketch ---------- */
+g=grp('carpet','Entrance & branding','Red Carpet (door to stage walkway)',1);b(g,130,.06,3.1,79,0,17,0xb3121e,{e:0x330000});lab(g,'Red carpet walkway',100,4,17,.3);
+g=grp('door','Entrance & branding','Main Entrance Door',1);b(g,.4,8,.4,143.8,0,14.2,0x6b4423);b(g,.4,8,.4,143.8,0,19.8,0x6b4423);b(g,.4,.5,5.6,143.8,8,17,0x6b4423);lab(g,'Main Door',143.8,11,17,8.5);
+g=grp('reg','Entrance & branding','Registration Hall (zone)',1);b(g,30,.08,14,127,0,26.8,0x1e3a5f,{t:.55});lab(g,'Registration Hall',116,6,22.5,.3);
+g=grp('lett','Entrance & branding','TECH FEST Letter Lights',1);
+{const k=document.createElement('canvas');k.width=1024;k.height=160;const X=k.getContext('2d');X.fillStyle='#050507';X.fillRect(0,0,1024,160);X.font='800 135px system-ui,sans-serif';X.textAlign='center';X.textBaseline='middle';X.shadowColor='#77ccff';X.shadowBlur=40;X.fillStyle='#fff';X.fillText('TECH FEST',512,82);
+const m=new THREE.Mesh(new THREE.PlaneGeometry(16,2.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(k)}));m.rotation.y=Math.PI/2;m.position.set(118,1.25,7.4);reg(g,m);b(g,.3,.2,16,117.8,0,7.4,0x15171c);lab(g,'TECH FEST letter lights (2.5 ft)',118,5,7.4,2.6)}
+g=grp('back','Entrance & branding','Photo Backdrop',1);b(g,12,8,.3,136,0,.7,0x1e3a8a,{e:0x0a1a50});lab(g,'Backdrop 12×8 (along wall)',136,11.5,.7,8.1);
+/* ---------- UI ---------- */
+const side=$('#side');
+side.innerHTML='<h1>Event Hall — 3D Layout</h1><div class="mu">Units in feet (assumed). Drag = orbit · right-drag = pan · wheel = zoom</div><div class="g"><button id="bl" class="on">Labels</button><button id="ba">All on</button><button id="bn">All off</button><button id="bt">Theme</button></div>';
+const order=[];Object.values(G).forEach(x=>{if(!order.includes(x.userData.cat))order.push(x.userData.cat)});
+const CO=['LED wall','Sound','Lighting','Stage','Panel Discussion','Main Furniture','Entrance & branding','Power & Electrical','Other Items','Suggested additions','Layout aids'];order.sort((a,b)=>CO.indexOf(a)-CO.indexOf(b));
+order.forEach(c=>{const h=document.createElement('h2');h.textContent=c;side.append(h);
+ Object.values(G).filter(x=>x.userData.cat===c).forEach(x=>{const u=x.userData,r=document.createElement('div');r.className='row';r.id='r_'+u.id;
+  r.innerHTML=`<label><input type="checkbox" checked><span><b>${u.name}</b> <span class="mu">×${u.n}</span></span></label><button title="Focus">⌖</button><button title="Zoom in">＋</button><button title="Zoom out">－</button>`;
+  const[bf,bi,bo]=r.querySelectorAll('button');r.querySelector('input').onchange=e=>{x.visible=e.target.checked};
+  bf.onclick=()=>focus(u.id);bi.onclick=()=>{selId!==u.id?focus(u.id):dz(.65)};bo.onclick=()=>{selId!==u.id?focus(u.id):dz(1.5)};side.append(r)})});
+const nt=document.createElement('p');nt.className='mu';nt.innerHTML='Assumptions: stage at the left wall (x=0), 20 ft wide × 12 ft deep, LED runners frame the main screen (V on sides, H on top). The door position (centre of the entrance wall), AV desk length, backdrop and letter-light sizes are estimates from your sketch. “Suggested additions” are items not on your list.';side.append(nt);
+function setLab(){sc.traverse(o=>{if(o.userData.lab)o.visible=labelsOn});$('#bl').classList.toggle('on',labelsOn)}
+$('#bl').onclick=()=>{labelsOn=!labelsOn;setLab()};
+const all=v=>{Object.values(G).forEach(x=>x.visible=v);side.querySelectorAll('input').forEach(i=>i.checked=v)};
+$('#ba').onclick=()=>all(true);$('#bn').onclick=()=>all(false);
+$('#bt').onclick=()=>{const d=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()==='#0d1117';document.documentElement.dataset.theme=d?'light':'dark'};
+
+/* ---------- camera ---------- */
+let tw=null,box=new THREE.Box3Helper(new THREE.Box3(),0xffc233);box.visible=false;sc.add(box);
+function go(p,t,d=.9){tw={p0:cam.position.clone(),t0:oc.target.clone(),p1:new V(...p),t1:new V(...t),s:performance.now(),d:d*1e3}}
+const views=[['Overview',[125,58,62],[45,0,17]],['Top',[72,170,17.1],[72,0,17]],['Side',[60,22,-62],[60,3,17]],['Stage close',[34,9,17],[3,6,17]],['Audience POV',[45,5.6,17],[0,6,17],1],['Podium POV',[9.8,6.3,24],[100,5,17],1],['AV desk POV',[22,5.8,31],[0,5,17],1],['Entrance POV',[141,6.5,17],[0,6,17],1]];
+views.forEach(([n,p,t,pov],i)=>{const e=document.createElement('button');e.textContent=n;e.onclick=()=>{document.querySelectorAll('#views button').forEach(x=>x.classList.remove('on'));e.classList.add('on');
+ if(pov){const d=new V(...t).sub(new V(...p)).normalize();t=new V(...p).addScaledVector(d,4).toArray()}go(p,t)};$('#views').append(e);if(!i)e.classList.add('on')});
+function dz(f){const t=oc.target,p=cam.position.clone().sub(t).multiplyScalar(f);go(t.clone().add(p).toArray(),t.toArray(),.35)}
+function focus(id){const q=G[id];q.visible=true;const cb=$('#r_'+id+' input');cb.checked=true;let bb=q.userData.bb;if(!bb){bb=new THREE.Box3();q.traverse(o=>{if(o.isMesh)bb.expandByObject(o)})}
+ const c=bb.getCenter(new V()),s=bb.getSize(new V()),dist=Math.max(Math.max(s.x,s.y,s.z)*1.5,6),d=cam.position.clone().sub(oc.target).normalize();d.y=Math.max(d.y,.3);d.normalize();
+ go(c.clone().addScaledVector(d,dist).toArray(),c.toArray());selId=id;box.box.copy(bb);box.visible=true;
+ document.querySelectorAll('.row').forEach(r=>r.classList.toggle('sel',r.id==='r_'+id));$('#r_'+id).scrollIntoView({block:'nearest'});$('#info').textContent=q.userData.name+' — qty '+q.userData.n+' · '+q.userData.cat}
+let dn=null;const cv=$('#c');cv.addEventListener('pointerdown',e=>dn=[e.clientX,e.clientY]);
+cv.addEventListener('pointerup',e=>{if(!dn||Math.hypot(e.clientX-dn[0],e.clientY-dn[1])>5)return;const r=cv.getBoundingClientRect(),rc=new THREE.Raycaster();rc.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1),cam);
+ const h=rc.intersectObjects(Object.values(G).filter(x=>x.visible&&x.userData.id!=='shell'&&x.userData.id!=='outside').map(x=>x),true).find(i=>i.object.userData.g);if(h)focus(h.object.userData.g)});
+function rs(){const w=R.clientWidth,h=R.clientHeight;ren.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}addEventListener('resize',rs);rs();
+cam.position.set(...views[0][1]);oc.target.set(...views[0][2]);setLab();
+(function loop(){requestAnimationFrame(loop);if(tw){const k=Math.min(1,(performance.now()-tw.s)/tw.d),e=k*k*(3-2*k);cam.position.lerpVectors(tw.p0,tw.p1,e);oc.target.lerpVectors(tw.t0,tw.t1,e);if(k>=1)tw=null}oc.update();ren.render(sc,cam)})();
+</script></body></html>
